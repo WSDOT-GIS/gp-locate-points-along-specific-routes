@@ -1,0 +1,6 @@
+TMC_Conflation.*
+*.gdb
+*.user
+*.suo
+*.sln
+*.pyproj
