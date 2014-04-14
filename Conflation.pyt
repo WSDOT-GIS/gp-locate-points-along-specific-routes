@@ -17,7 +17,7 @@ class LocateFeaturesAlongSpecificRoutes(object):
 		"""Define the tool (tool name is the name of the class)."""
 		self.label = "Locate Features Along Specific Routes"
 		self.description = ""
-		self.canRunInBackground = False
+		self.canRunInBackground = True
 
 	def getParameterInfo(self):
 		"""Define parameter definitions"""
@@ -146,14 +146,17 @@ class LocateFeaturesAlongSpecificRoutes(object):
 			tempTable = arcpy.CreateScratchName("temp", None, "TABLE", "in_memory")
 			boolField = "SpecificRoute"
 			# Determine the default value to add to the newly added field.
-			defaultValue = 0
+			defaultValue = "0"
 			if defaultBoolValue:
-				defaultValue = 1
+				defaultValue = "1"
 	
 			# Locate features along routes
 			arcpy.lr.LocateFeaturesAlongRoutes(pointsLayer, routeLayer, routesRouteIdField, radiusOrTolerance, tempTable, out_event_properties, "FIRST", "DISTANCE", "ZERO", "FIELDS")
+			messages.addGPMessages()
 			arcpy.management.AddField(tempTable, boolField, "SHORT", None, None, None, "Located on Specific Route")
+			messages.addGPMessages()
 			arcpy.management.CalculateField(tempTable, boolField, str(defaultValue))
+			messages.addGPMessages()
 	
 			# Create the output table if it does not already exist.
 			try:
@@ -161,11 +164,13 @@ class LocateFeaturesAlongSpecificRoutes(object):
 					arcpy.management.CopyRows(tempTable, outEventTable)
 				else: 
 					arcpy.management.Append(tempTable, outEventTable, "TEST")
+				messages.addGPMessages()
 			except arcpy.ExecuteError as err:
 				print err
 				raise err
 			# Now that the rows have been copied, the temp. table can be deleted.
 			arcpy.management.Delete(tempTable)
+			messages.addGPMessages()
 
 		try:
 			routeIds = getUniqueValues(pointFeatures, pointRouteIdField)
@@ -179,43 +184,56 @@ class LocateFeaturesAlongSpecificRoutes(object):
 			where = createInWhereClause(routesRouteIdField, routeIds)
 
 			arcpy.management.MakeFeatureLayer(routeFeatures, routeLayer, where, "in_memory")
+			messages.addGPMessages()
 			arcpy.management.MakeFeatureLayer(pointFeatures, pointsLayer, workspace="in_memory")
+			messages.addGPMessages()
 
 			# Delete the output table if it already exists.
 			if arcpy.Exists(outEventTable):
 				arcpy.management.Delete(outEventTable)
+				messages.addGPMessages()
 
 			for routeId in routeIds:
 				print "Processing \"%s\"..." % routeId
 				# Select the features that match the current route.
 				arcpy.management.SelectLayerByAttribute(routeLayer, "NEW_SELECTION", "%s = '%s'" % (routesRouteIdField, routeId))
+				messages.addGPMessages()
 				arcpy.management.SelectLayerByAttribute(pointsLayer, "NEW_SELECTION", "%s = '%s'" % (pointRouteIdField, routeId))
+				messages.addGPMessages()
 
 				locate_points_along_routes()
 
 
 			# Clear the selection on the points and route layers.
 			arcpy.management.SelectLayerByAttribute(routeLayer, "CLEAR_SELECTION")
+			messages.addGPMessages()
 			arcpy.management.SelectLayerByAttribute(pointsLayer, "CLEAR_SELECTION")
+			messages.addGPMessages()
 
 			# Find the nearest route to the points that have not yet been matched.
-			matchedPointIds = getUniqueValues(pointsLayer, pointUniqueId)
+			#matchedPointIds = getUniqueValues(pointsLayer, pointUniqueId)
+			matchedPointIds = getUniqueValues(outEventTable, pointUniqueId)
 			where = createInWhereClause(pointUniqueId, matchedPointIds, True, True)
 			arcpy.management.SelectLayerByAttribute(pointsLayer, "NEW_SELECTION", where)
+			messages.addGPMessages()
 			locate_points_along_routes(False)
 
 			# Create the route event layer.
 			eventLayer = arcpy.CreateScratchName("event", workspace="in_memory")
 			arcpy.lr.MakeRouteEventLayer(routeLayer, routesRouteIdField, outEventTable, out_event_properties, eventLayer, None, "ERROR_FIELD", "ANGLE_FIELD", "NORMAL", "ANGLE", "LEFT", "POINT")
+			messages.addGPMessages()
 
 			arcpy.management.CopyFeatures(eventLayer, outFeatures)
+			messages.addGPMessages()
 
 			for item in [routeLayer, pointsLayer, eventLayer, outEventTable]:
 				arcpy.management.Delete(item)
+				messages.addGPMessages()
 		except arcpy.ExecuteError as err:
 			print err
 			raise err
 		finally:
 			# Clear all of the temp tables created in the "in_memory" workspace.
 			arcpy.management.Delete("in_memory")
+			messages.addGPMessages()
 		return
